@@ -6,17 +6,30 @@
         <title>Literator</title>
         <meta name="viewport" content="width=device-width">
         <link rel="stylesheet" href="http://yandex.st/highlightjs/8.0/styles/default.min.css">
+        <link rel="stylesheet" href="css/github-markdown.css"></link>
         <link rel="stylesheet" href="css/literator.css">
     </head>
     <body>
 
-        <p>Drag and drop a file to begin!</p>
+        <div class='welcome markdown'>
+# Welcome!
 
-        <div class='drop_zone'></div>
+Let's get this party started! **Drag and drop** a `file` to get started!
 
+        </div>
+
+        <div class='menu'>
+            <a href=# class="run-button">run</a> | <a href=# class="compile-button">compile</a>
+        </div>
+
+
+        <div class='literate'></div>
+
+        <script src="libs/marked.js"></script>
         <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.1/jquery.min.js"></script>
+        <script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.2/underscore-min.js"></script>
         <script src="http://yandex.st/highlightjs/8.0/highlight.min.js"></script>
-        
+        <script src="libs/coffee-script.js"></script>
         <script src="literator.js"></script>
 
     </body>
