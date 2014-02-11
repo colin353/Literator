@@ -4,7 +4,11 @@ First section
 Below, I've written some code to calculate hello world.
 
 	for i in [1,2,3]
-		console.log 'test hello world'
+		lit.print 'test hello world'
+
+And below, we've got the actual output of the `for` loop:
+
+##CONSOLE##
 
 But first we must certify that we are indeed animals
 

@@ -1,7 +1,17 @@
 class window.LiterateLoader
 	constructor: () ->
 		@debug 			= yes
-		@print_buffer 	= ""
+		@print_buffer 	= []
+
+	identify_segment: (line) ->
+		# Note that the order here matters: it is possible
+		# to have multiple types claim the same line, so the
+		# order must specify the preference.
+		segment_types = [CodeSegment, ConsoleSegment, MarkdownSegment]
+		for s in segment_types
+			if s.identifier.test line 
+				return s
+		assert false, "No identifier matched the target..."
 
 	load: (text) ->
 		@clear()
@@ -10,31 +20,28 @@ class window.LiterateLoader
 		block_type = null
 		code = markdown = ""
 		@segments = []
-		console.log lines
-		for line in lines
-			# Test to see if we are looking at code
-			if /^\t/.test line 
-				if block_type == 'code'
-					code += "\n" + line.replace(/^\t/,'')
-				else 
-					code = line.replace(/^\t/,'')
-					@segments.push new MarkdownSegment(markdown) unless !block_type?
-					block_type = 'code'
-					markdown = ""
-			else 
-				if block_type == 'markdown'
-					markdown += "\n" + line
-				else 
-					markdown = line
-					@segments.push new CodeSegment(code) unless !block_type?
-					block_type = 'markdown'
-					code = ""
 
-		# Finally, capture the last block...
-		if block_type = 'markdown'
-			@segments.push new MarkdownSegment(markdown)
-		else 
-			@segments.push new CodeSegment(code)
+		# Get the first line.
+		line = lines.shift()
+		# Which type of segment does it correspond to?
+		seg_type = @identify_segment line
+		segment = new seg_type()
+		# Add the current line to the segment's list
+		segment.lines.push line
+
+		for line in lines
+			this_seg_type = @identify_segment line 
+			if this_seg_type == seg_type
+				segment.lines.push line
+			else 
+				seg_type = this_seg_type
+				segment.finish_loading()
+				@segments.push segment
+				segment = new this_seg_type()
+				segment.lines.push line 
+
+		segment.finish_loading()
+		@segments.push segment
 
 		for s in @segments
 			$('.literate').append s.encapsulate()
@@ -44,13 +51,13 @@ class window.LiterateLoader
 	# This can be used to produce console output
 	# in the literary mode.
 	print: (text) ->
-		@print_buffer += text + "\n"
+		@print_buffer.push text
 
 	# This is called by the console segment in order
 	# to display buffered output.
 	empty_print_buffer: ->
 		p = @print_buffer
-		@print_buffer = ""
+		@print_buffer = []
 		return p
 
 	run: ->
@@ -58,7 +65,7 @@ class window.LiterateLoader
 			for s in @segments
 				s.run()
 		catch error
-			console.log "Execution halted due to errors."
+			console.log "Execution halted due to errors: ", error
 
 	clear: ->
 		$('.literate').html ''
@@ -80,6 +87,10 @@ class DocumentSegment
 		@dom_element = null
 		if !@encapsulation_id
 			@encapsulation_id = "" + Math.floor( Math.random() * 1000000 )
+		@lines = []
+
+	finish_loading: ->
+		@load( @lines.join("\n") )
 
 	load: ->
 		assert false, 'Invalid call of base DocumentSegment load.'
@@ -106,13 +117,20 @@ class DocumentSegment
 		@dom_element.append @.render()
 		return @dom_element
 
-class CodeSegment extends DocumentSegment
+class window.CodeSegment extends DocumentSegment
 	constructor: (@code="") ->
 		super()
 		yes
+	
+	@identifier: /^\t/
 
 	load: (code) ->
 		@code = code
+
+	finish_loading: ->
+		# List comprehension!
+		@lines = ( line.replace(/^\t/,'') for line in @lines )
+		@load @lines.join("\n")
 
 	run: ->
 		# The thing might still be higlighted red from eariler.
@@ -140,6 +158,8 @@ class CodeSegment extends DocumentSegment
 class MarkdownSegment extends DocumentSegment
 	constructor: (@content="") ->
 		super()
+	
+	@identifier: /^[^\t]/
 
 	load: (content) ->
 		@content = content
@@ -147,6 +167,27 @@ class MarkdownSegment extends DocumentSegment
 	render: (self) ->
 		element = $ "<div class='markdown'>#{@content}</div>"
 		element.attr 'data-markdown', @content
+		return element
+
+class ConsoleSegment extends DocumentSegment
+	constructor: (@content="") ->
+		super()
+	
+	@identifier: /##CONSOLE##/
+
+	load: (content) ->
+		@content = content
+
+	# When run, we clear everything out, and fill up the console
+	# with whatever is in there right now.
+	run: ->
+		@my_element().html('').append @render()
+		yes
+
+	render: (self) ->
+		content = " > " + lit.empty_print_buffer().join("\n > ")
+		element = $ "<div class='console'>#{content}</div>"
+		element.attr 'data-code', content
 		return element
 
 # My customized assert method.
