@@ -4,6 +4,10 @@ First section
 Below, I've written some code to calculate hello world.	for i in [1,2,3]	lit.print 'test hello worldians'	
 And below, we've got the actual output of the `for` loop:
 
+# Section 2
+
+- the best section
+- the super best section
 ##CONSOLE##
 But first we must certify that we are indeed animals	we = "human"	assert true, "We aren't certified to be animals!"	
 As one can see, this is *clearly* a much better `source` of
@@ -16,6 +20,6 @@ As one can see, this is *clearly* a much better `source` of
 > would be better than this!
 > -- Abraham Lincoln
 
-than the leading brand of detergent.	grocerylist = ['bread', 'muffins', 'detergent']		
+than the leading brand of detergent.	grocerylist = ['bread', 'muffins', 'detergent']			
 	
 	

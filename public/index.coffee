@@ -14,6 +14,7 @@ $ ->
 			reader.onload = ->
 				console.log reader.result
 				# Load up the literator.
-				alert reader.result
+				$.post '/new', { data: reader.result }, (r) ->
+					window.location.href = "/#{r}"
 				
 			reader.readAsText f

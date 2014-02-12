@@ -18,7 +18,11 @@
         reader = new FileReader();
         reader.onload = function() {
           console.log(reader.result);
-          return alert(reader.result);
+          return $.post('/new', {
+            data: reader.result
+          }, function(r) {
+            return window.location.href = "/" + r;
+          });
         };
         _results.push(reader.readAsText(f));
       }
