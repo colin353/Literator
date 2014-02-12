@@ -22,9 +22,7 @@ As one can see, this is *clearly* a much better `source` of
 - nutrients
 
 > A house divided against itself
-
 > would be better than this!
-
 > -- Abraham Lincoln
 
 than the leading brand of detergent.

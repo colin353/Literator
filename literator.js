@@ -14,6 +14,9 @@
     LiterateLoader.prototype.identify_segment = function(line) {
       var s, segment_types, _i, _len;
 
+      if (line === "") {
+        return "blank";
+      }
       segment_types = [CodeSegment, ConsoleSegment, MarkdownSegment];
       for (_i = 0, _len = segment_types.length; _i < _len; _i++) {
         s = segment_types[_i];
@@ -21,7 +24,7 @@
           return s;
         }
       }
-      return assert(false, "No identifier matched the target...");
+      return assert(false, "No identifier matched the target line: '" + line + "'");
     };
 
     LiterateLoader.prototype.load = function(text) {
@@ -31,15 +34,20 @@
       lines = text.split(/\n/);
       block_type = null;
       code = markdown = "";
+      seg_type = "blank";
       this.segments = [];
       line = lines.shift();
       seg_type = this.identify_segment(line);
+      while (seg_type === "blank") {
+        line = lines.shift();
+        seg_type = this.identify_segment(line);
+      }
       segment = new seg_type();
       segment.lines.push(line);
       for (_i = 0, _len = lines.length; _i < _len; _i++) {
         line = lines[_i];
         this_seg_type = this.identify_segment(line);
-        if (this_seg_type === seg_type) {
+        if (this_seg_type === "blank" || this_seg_type === seg_type) {
           segment.lines.push(line);
         } else {
           seg_type = this_seg_type;
@@ -307,6 +315,18 @@
       return codemirror.scrollIntoView();
     };
 
+    CodeSegment.prototype["export"] = function() {
+      var l, lines, output, _i, _len;
+
+      lines = this.code.split(/\n/);
+      output = "";
+      for (_i = 0, _len = lines.length; _i < _len; _i++) {
+        l = lines[_i];
+        output += "\t" + l + "\n";
+      }
+      return output;
+    };
+
     CodeSegment.prototype.save = function() {
       this.code = codemirror.getValue();
       this.reload_code();
@@ -347,7 +367,7 @@
       this.allow_editing = true;
     }
 
-    MarkdownSegment.identifier = /^[^\t]/;
+    MarkdownSegment.identifier = /(?:)/;
 
     MarkdownSegment.prototype.load = function(content) {
       return this.content = content;
@@ -361,10 +381,15 @@
       return element;
     };
 
+    MarkdownSegment.prototype["export"] = function() {
+      return this.content;
+    };
+
     MarkdownSegment.prototype.edit = function() {
       var me;
 
       me = this;
+      this.is_editing = true;
       assert(typeof codemirror !== "undefined" && codemirror !== null, "CodeMirror is not loaded, for some reason.");
       codemirror.setOption('mode', 'markdown');
       codemirror.setOption('value', this.content);
@@ -378,6 +403,7 @@
     };
 
     MarkdownSegment.prototype.save = function() {
+      console.log("cleaning up markdown");
       this.content = codemirror.getValue();
       this.reload_markdown();
       return this.finish_editing();
@@ -390,6 +416,7 @@
     };
 
     MarkdownSegment.prototype.finish_editing = function() {
+      this.is_editing = false;
       $('.CodeMirror').hide();
       return $('.codeblanket').hide();
     };
@@ -415,6 +442,10 @@
     ConsoleSegment.prototype.run = function() {
       this.my_element().html('').append(this.render());
       return true;
+    };
+
+    ConsoleSegment.prototype["export"] = function() {
+      return '\n##CONSOLE##\n';
     };
 
     ConsoleSegment.prototype.render = function(self) {
@@ -481,7 +512,6 @@
     $(".CodeMirror").append("<div class='save-button'>SAVE</div>");
     $(window).keydown(function(e) {
       if (!((e.which === 115 || e.which === 83) && e.ctrlKey) && !(e.which === 19)) {
-        console.log(e.which);
         return true;
       }
       lit.save();
@@ -489,11 +519,13 @@
       return false;
     });
     return $('.download-button').click(function() {
-      var code;
+      var code, pom;
 
       code = lit["export"]();
-      console.log(code);
-      return console.log($.base64.encode(code));
+      pom = document.createElement('a');
+      pom.setAttribute('href', 'data:text/plain;charset=utf-8;base64,' + btoa(code));
+      pom.setAttribute('download', 'test.litcoffee');
+      return pom.click();
     });
   });
 

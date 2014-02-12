@@ -5,6 +5,8 @@ class window.LiterateLoader
 		@segments 		= []
 
 	identify_segment: (line) ->
+		if line == ""
+		 	return "blank"
 		# Note that the order here matters: it is possible
 		# to have multiple types claim the same line, so the
 		# order must specify the preference.
@@ -12,7 +14,7 @@ class window.LiterateLoader
 		for s in segment_types
 			if s.identifier.test line 
 				return s
-		assert false, "No identifier matched the target..."
+		assert false, "No identifier matched the target line: '#{line}'"
 
 	load: (text) ->
 		@clear()
@@ -20,19 +22,24 @@ class window.LiterateLoader
 		lines = text.split /\n/
 		block_type = null
 		code = markdown = ""
+		seg_type = "blank"
 		@segments = []
 
 		# Get the first line.
 		line = lines.shift()
 		# Which type of segment does it correspond to?
 		seg_type = @identify_segment line
+		# If we draw a blank line, throw it away.
+		while seg_type == "blank"
+			line = lines.shift()
+			seg_type = @identify_segment line
 		segment = new seg_type()
 		# Add the current line to the segment's list
 		segment.lines.push line
 
 		for line in lines
 			this_seg_type = @identify_segment line 
-			if this_seg_type == seg_type
+			if this_seg_type == "blank" || this_seg_type == seg_type
 				segment.lines.push line
 			else 
 				seg_type = this_seg_type
@@ -243,6 +250,13 @@ class window.CodeSegment extends DocumentSegment
 		# that it has been made visible
 		codemirror.scrollIntoView()
 
+	export: ->
+		lines = @code.split /\n/
+		output = ""
+		for l in lines
+			output += "\t#{l}\n"
+		return output
+
 	save: ->
 		@code = codemirror.getValue()
 		@reload_code()
@@ -269,7 +283,7 @@ class MarkdownSegment extends DocumentSegment
 		super()
 		@allow_editing = yes
 	
-	@identifier: /^[^\t]/
+	@identifier: //
 
 	load: (content) ->
 		@content = content
@@ -279,8 +293,12 @@ class MarkdownSegment extends DocumentSegment
 		element.attr 'data-markdown', @content
 		return element
 
+	export: ->
+		return @content
+
 	edit: ->
 		me = @
+		@is_editing = yes
 		# Load up the CodeMirror.
 		assert codemirror?, "CodeMirror is not loaded, for some reason."
 		codemirror.setOption 'mode', 'markdown'
@@ -303,10 +321,9 @@ class MarkdownSegment extends DocumentSegment
 		$('.CodeMirror').show()
 		$('.codeblanket').show()
 		codemirror.scrollIntoView()
-		
-
 
 	save: ->
+		console.log "cleaning up markdown"
 		@content = codemirror.getValue()
 		@reload_markdown()
 		@finish_editing()
@@ -317,6 +334,7 @@ class MarkdownSegment extends DocumentSegment
 		lit.contentUpdated()
 
 	finish_editing: ->
+		@is_editing = no
 		$('.CodeMirror').hide()
 		$('.codeblanket').hide()
 
@@ -334,6 +352,13 @@ class ConsoleSegment extends DocumentSegment
 	run: ->
 		@my_element().html('').append @render()
 		yes
+
+	export: ->
+		'''
+		
+		##CONSOLE##
+
+		'''
 
 	render: (self) ->
 		content = " > " + lit.empty_print_buffer().join("\n > ")
@@ -391,7 +416,6 @@ $ ->
 
 	$(window).keydown (e) ->
 		if !( (e.which == 115 || e.which == 83 ) && e.ctrlKey) && !(e.which == 19)
-			console.log e.which
 			return true;
 		lit.save()
 		e.preventDefault()
@@ -399,5 +423,7 @@ $ ->
 
 	$('.download-button').click ->
 		code = lit.export()
-		console.log code
-		console.log $.base64.encode(code)
+		pom = document.createElement('a')
+		pom.setAttribute('href', 'data:text/plain;charset=utf-8;base64,' + btoa(code));
+		pom.setAttribute('download', 'test.litcoffee')
+		pom.click()
