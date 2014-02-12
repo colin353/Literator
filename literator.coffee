@@ -2,6 +2,7 @@ class window.LiterateLoader
 	constructor: () ->
 		@debug 			= yes
 		@print_buffer 	= []
+		@segments 		= []
 
 	identify_segment: (line) ->
 		# Note that the order here matters: it is possible
@@ -43,9 +44,9 @@ class window.LiterateLoader
 		segment.finish_loading()
 		@segments.push segment
 
+	render: ->
 		for s in @segments
-			$('.literate').append s.encapsulate()
-
+			$('.segments').append s.encapsulate()
 		@contentUpdated()
 
 	# This can be used to produce console output
@@ -61,18 +62,52 @@ class window.LiterateLoader
 		return p
 
 	run: ->
+		success = yes
 		try
 			for s in @segments
 				s.run()
 		catch error
 			console.log "Execution halted due to errors: ", error
+			success = no
+
+		if success
+			# If we got this far, we are pretty well safe. Let's light up
+			# the light!
+			$('.run-button').addClass('success')
+			$('.run-button').removeClass('failure')
+			setTimeout ->
+				$('.run-button').removeClass('success')
+			,2000
+		else 
+			$('.run-button').addClass('failure')
+
+	export: ->
+		code = []
+		for s in @segments
+			code.push s.export()
+		return code.join("")
+
+
+	# This function gets called when the keypress "ctrl+s" gets pushed.
+	save: ->
+		# Distribute the event to all segments that might currently be
+		# editing.
+		for s in @segments
+			if s.is_editing
+				s.save()
 
 	clear: ->
-		$('.literate').html ''
+		$('.segments').html ''
 
 	contentUpdated: ->
 		$('.markdown').each ->
-			$(@).html marked($(@).text())
+			# Check for the data attribute. If you don't include this, there's
+			# a good chance that we'll run this multiple times and fuck it up.
+			if $(@).attr('data-markdown')?
+				$(@).html marked($(@).attr('data-markdown'))
+			else 
+				console.warn "Note: you have a markdown element that is relying on HTML -> HTML transfer. This is unreliable."
+				$(@).html $(@).text()
 		$('.code').each ->
 			# If we can support it, we'll check for the data attribute
 			# which will be simpler and less error-prone to decode.
@@ -81,6 +116,7 @@ class window.LiterateLoader
 			# Otherwise, we'll use the internal contents.
 			else
 				$(@).html hljs.highlight( 'coffeescript', $(@).html() ).value
+				console.warn "Note: you have a code element that is relying on HTML -> HTML transfer. This is unreliable."
 
 class DocumentSegment
 	constructor: (@encapsulation_id = false) ->
@@ -88,9 +124,15 @@ class DocumentSegment
 		if !@encapsulation_id
 			@encapsulation_id = "" + Math.floor( Math.random() * 1000000 )
 		@lines = []
+		# By default, elements don't permit editing.
+		@allow_editing = no
+		@is_editing = no
 
 	finish_loading: ->
 		@load( @lines.join("\n") )
+
+	export: ->
+		return ""
 
 	load: ->
 		assert false, 'Invalid call of base DocumentSegment load.'
@@ -109,19 +151,37 @@ class DocumentSegment
 	render: ->
 		assert false, "It is illegal to try to render a generic DocumentSegment"
 
+	edit: ->
+		assert false, "It is illegal to try to edit the generic DocumentSegment"
+
 	# This function returns a jquery object that represents the 
 	# segment. It can be inserted into the document.
 	encapsulate: ->
 		s = "<div class='segment' id='#{@my_element_string()}'></div>"
 		@dom_element = $(s)
 		@dom_element.append @.render()
+		# If editing is permitted, we'll add the editing button
+		# which will pop up when the user hovers the segment.
+		if @allow_editing
+			me = @
+			edit_button = $ '<div class="edit-button">EDIT</div>'
+			edit_button.click -> 
+				me.edit.call me
+			@dom_element.append edit_button
+
+			# Also we should allow editing via double-click:
+			@dom_element.dblclick (e) ->
+				me.edit.call me
+				e.preventDefault()
+				return false
 		return @dom_element
 
 class window.CodeSegment extends DocumentSegment
-	constructor: (@code="") ->
+	constructor: (@code="") -> 
 		super()
+		@allow_editing = yes
 		yes
-	
+	 
 	@identifier: /^\t/
 
 	load: (code) ->
@@ -135,20 +195,69 @@ class window.CodeSegment extends DocumentSegment
 	run: ->
 		# The thing might still be higlighted red from eariler.
 		@my_element().removeClass('error')
+		@my_element().find('.error_message').remove()
 
 		js_code = ""
 		try  
 			js_code = CoffeeScript.compile @code
 		catch error
 			@my_element().addClass('error')
-			console.log "Error compiling CoffeeScript on element with error: ", error
-			throw "Error found in compiling coffeescript, finishing."
+			error_message = "<b>Error</b> compiling CoffeeScript on element with error: " + error
+			error_element = $("<div class='error_message'></div>").html error_message
+			@my_element().children('.code').append error_element
+			console.log error_message
+			throw error_message
 		try
 			eval js_code
 		catch error
 			@my_element().addClass('error')
-			console.log "Error compiling CoffeeScript on element with error: ", error
-			throw "Error found in running compiled JS, finishing."
+			error_message = "<b>Error</b> running compiled js on element with error: " + error
+			error_element = $("<div class='error_message'></div>").html error_message
+			@my_element().children('.code').append error_element
+			console.log error_message
+			throw error_message
+
+	edit: ->
+		me = @
+		# Load up the CodeMirror.
+		assert codemirror?, "CodeMirror is not loaded, for some reason."
+
+		# Let's do some editing!
+		@is_editing = yes
+
+		codemirror.setOption 'mode', 'coffeescript'
+		codemirror.setOption 'value', @code
+		
+		# This line widens the code editor so that it matches the current
+		# screen size.
+		$(".CodeMirror").width( $('body').width()-30)
+
+		# Now let's register the save button. We'll override anything
+		# else registered on that button, also.
+		$('.CodeMirror').find('.save-button').unbind('click').click ->
+			me.save.call me
+
+		$('.CodeMirror').show()
+		$('.codeblanket').show()
+		# This line is necessary to tell the codemirror controller
+		# that it has been made visible
+		codemirror.scrollIntoView()
+
+	save: ->
+		@code = codemirror.getValue()
+		@reload_code()
+		@finish_editing()
+
+	reload_code: ->
+		@dom_element.removeClass('error')
+		@dom_element.children(".code").remove()
+		@dom_element.append @render()
+		lit.contentUpdated()
+
+	finish_editing: ->
+		$('.CodeMirror').hide()
+		$('.codeblanket').hide()
+		@is_editing = no
 
 	render: (self) ->
 		element = $ "<div class='code'></div>"
@@ -158,6 +267,7 @@ class window.CodeSegment extends DocumentSegment
 class MarkdownSegment extends DocumentSegment
 	constructor: (@content="") ->
 		super()
+		@allow_editing = yes
 	
 	@identifier: /^[^\t]/
 
@@ -168,6 +278,47 @@ class MarkdownSegment extends DocumentSegment
 		element = $ "<div class='markdown'>#{@content}</div>"
 		element.attr 'data-markdown', @content
 		return element
+
+	edit: ->
+		me = @
+		# Load up the CodeMirror.
+		assert codemirror?, "CodeMirror is not loaded, for some reason."
+		codemirror.setOption 'mode', 'markdown'
+		codemirror.setOption 'value', @content
+		# This line aligns the editor with the current element.
+		
+		# This line widens the code editor so that it matches the current
+		# screen size.
+		$(".CodeMirror").width( $('body').width()-30)
+
+		# Now let's register the save button. We'll override anything
+		# else registered on that button, also.
+		$('.CodeMirror').find('.save-button').unbind('click').click ->
+			me.save.call me
+
+		# This code segment scrolls the viewer around to find the segment
+		# currently being edited. But it's kind of weird when you're near
+		# the end of the document.
+
+		$('.CodeMirror').show()
+		$('.codeblanket').show()
+		codemirror.scrollIntoView()
+		
+
+
+	save: ->
+		@content = codemirror.getValue()
+		@reload_markdown()
+		@finish_editing()
+
+	reload_markdown: ->
+		@dom_element.children(".markdown").remove()
+		@dom_element.append @render()
+		lit.contentUpdated()
+
+	finish_editing: ->
+		$('.CodeMirror').hide()
+		$('.codeblanket').hide()
 
 class ConsoleSegment extends DocumentSegment
 	constructor: (@content="") ->
@@ -196,7 +347,7 @@ window.assert = (condition, error) ->
 	yes
 
 $ ->
-
+	# This is the main literator object.
 	window.lit = new LiterateLoader()
 
 	# This is necessary to stop the drag and drop from 
@@ -207,7 +358,6 @@ $ ->
 
 	$('body').on 'drop', (e) ->
 		e.preventDefault();e.stopPropagation()
-
 		console.log files = e.originalEvent.dataTransfer.files
 		for f in files
 			console.log "Loading file #{f.name}..."
@@ -215,7 +365,10 @@ $ ->
 			reader.onload = ->
 				console.log reader.result
 				# Load up the literator.
-				window.lit.load reader.result
+				lit.load reader.result
+				lit.render()
+				lit.run()
+				# Hide the welcome banner.
 				$('.welcome').hide()
 			reader.readAsText f
 
@@ -226,3 +379,25 @@ $ ->
 
 	$('.run-button').click ->
 		lit.run()
+
+	window.codemirror = CodeMirror document.body, {
+		value: "this is a test",
+		mode: "coffeescript",
+		theme: "ambiance",
+		lineNumbers: yes		
+	}
+
+	$(".CodeMirror").append("<div class='save-button'>SAVE</div>")
+
+	$(window).keydown (e) ->
+		if !( (e.which == 115 || e.which == 83 ) && e.ctrlKey) && !(e.which == 19)
+			console.log e.which
+			return true;
+		lit.save()
+		e.preventDefault()
+		return false
+
+	$('.download-button').click ->
+		code = lit.export()
+		console.log code
+		console.log $.base64.encode(code)

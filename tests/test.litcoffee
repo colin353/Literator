@@ -13,7 +13,7 @@ And below, we've got the actual output of the `for` loop:
 But first we must certify that we are indeed animals
 
 	we = "human"
-	assert true, "We aren't certified to be animals!"
+	assert false, "We aren't certified to be animals!"
 
 As one can see, this is *clearly* a much better `source` of
 

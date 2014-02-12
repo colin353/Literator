@@ -8,6 +8,7 @@
     function LiterateLoader() {
       this.debug = true;
       this.print_buffer = [];
+      this.segments = [];
     }
 
     LiterateLoader.prototype.identify_segment = function(line) {
@@ -24,7 +25,7 @@
     };
 
     LiterateLoader.prototype.load = function(text) {
-      var block_type, code, line, lines, markdown, s, seg_type, segment, this_seg_type, _i, _j, _len, _len1, _ref;
+      var block_type, code, line, lines, markdown, seg_type, segment, this_seg_type, _i, _len;
 
       this.clear();
       lines = text.split(/\n/);
@@ -49,11 +50,16 @@
         }
       }
       segment.finish_loading();
-      this.segments.push(segment);
+      return this.segments.push(segment);
+    };
+
+    LiterateLoader.prototype.render = function() {
+      var s, _i, _len, _ref;
+
       _ref = this.segments;
-      for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
-        s = _ref[_j];
-        $('.literate').append(s.encapsulate());
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        s = _ref[_i];
+        $('.segments').append(s.encapsulate());
       }
       return this.contentUpdated();
     };
@@ -71,35 +77,78 @@
     };
 
     LiterateLoader.prototype.run = function() {
-      var error, s, _i, _len, _ref, _results;
+      var error, s, success, _i, _len, _ref;
 
+      success = true;
       try {
         _ref = this.segments;
-        _results = [];
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
           s = _ref[_i];
-          _results.push(s.run());
+          s.run();
         }
-        return _results;
       } catch (_error) {
         error = _error;
-        return console.log("Execution halted due to errors: ", error);
+        console.log("Execution halted due to errors: ", error);
+        success = false;
+      }
+      if (success) {
+        $('.run-button').addClass('success');
+        $('.run-button').removeClass('failure');
+        return setTimeout(function() {
+          return $('.run-button').removeClass('success');
+        }, 2000);
+      } else {
+        return $('.run-button').addClass('failure');
       }
     };
 
+    LiterateLoader.prototype["export"] = function() {
+      var code, s, _i, _len, _ref;
+
+      code = [];
+      _ref = this.segments;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        s = _ref[_i];
+        code.push(s["export"]());
+      }
+      return code.join("");
+    };
+
+    LiterateLoader.prototype.save = function() {
+      var s, _i, _len, _ref, _results;
+
+      _ref = this.segments;
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        s = _ref[_i];
+        if (s.is_editing) {
+          _results.push(s.save());
+        } else {
+          _results.push(void 0);
+        }
+      }
+      return _results;
+    };
+
     LiterateLoader.prototype.clear = function() {
-      return $('.literate').html('');
+      return $('.segments').html('');
     };
 
     LiterateLoader.prototype.contentUpdated = function() {
       $('.markdown').each(function() {
-        return $(this).html(marked($(this).text()));
+        if ($(this).attr('data-markdown') != null) {
+          return $(this).html(marked($(this).attr('data-markdown')));
+        } else {
+          console.warn("Note: you have a markdown element that is relying on HTML -> HTML transfer. This is unreliable.");
+          return $(this).html($(this).text());
+        }
       });
       return $('.code').each(function() {
         if ($(this).attr('data-code') != null) {
           return $(this).html(hljs.highlight('coffeescript', $(this).attr('data-code')).value);
         } else {
-          return $(this).html(hljs.highlight('coffeescript', $(this).html()).value);
+          $(this).html(hljs.highlight('coffeescript', $(this).html()).value);
+          return console.warn("Note: you have a code element that is relying on HTML -> HTML transfer. This is unreliable.");
         }
       });
     };
@@ -116,10 +165,16 @@
         this.encapsulation_id = "" + Math.floor(Math.random() * 1000000);
       }
       this.lines = [];
+      this.allow_editing = false;
+      this.is_editing = false;
     }
 
     DocumentSegment.prototype.finish_loading = function() {
       return this.load(this.lines.join("\n"));
+    };
+
+    DocumentSegment.prototype["export"] = function() {
+      return "";
     };
 
     DocumentSegment.prototype.load = function() {
@@ -142,12 +197,29 @@
       return assert(false, "It is illegal to try to render a generic DocumentSegment");
     };
 
+    DocumentSegment.prototype.edit = function() {
+      return assert(false, "It is illegal to try to edit the generic DocumentSegment");
+    };
+
     DocumentSegment.prototype.encapsulate = function() {
-      var s;
+      var edit_button, me, s;
 
       s = "<div class='segment' id='" + (this.my_element_string()) + "'></div>";
       this.dom_element = $(s);
       this.dom_element.append(this.render());
+      if (this.allow_editing) {
+        me = this;
+        edit_button = $('<div class="edit-button">EDIT</div>');
+        edit_button.click(function() {
+          return me.edit.call(me);
+        });
+        this.dom_element.append(edit_button);
+        this.dom_element.dblclick(function(e) {
+          me.edit.call(me);
+          e.preventDefault();
+          return false;
+        });
+      }
       return this.dom_element;
     };
 
@@ -161,6 +233,7 @@
     function CodeSegment(code) {
       this.code = code != null ? code : "";
       CodeSegment.__super__.constructor.call(this);
+      this.allow_editing = true;
       true;
     }
 
@@ -188,26 +261,69 @@
     };
 
     CodeSegment.prototype.run = function() {
-      var error, js_code;
+      var error, error_element, error_message, js_code;
 
       this.my_element().removeClass('error');
+      this.my_element().find('.error_message').remove();
       js_code = "";
       try {
         js_code = CoffeeScript.compile(this.code);
       } catch (_error) {
         error = _error;
         this.my_element().addClass('error');
-        console.log("Error compiling CoffeeScript on element with error: ", error);
-        throw "Error found in compiling coffeescript, finishing.";
+        error_message = "<b>Error</b> compiling CoffeeScript on element with error: " + error;
+        error_element = $("<div class='error_message'></div>").html(error_message);
+        this.my_element().children('.code').append(error_element);
+        console.log(error_message);
+        throw error_message;
       }
       try {
         return eval(js_code);
       } catch (_error) {
         error = _error;
         this.my_element().addClass('error');
-        console.log("Error compiling CoffeeScript on element with error: ", error);
-        throw "Error found in running compiled JS, finishing.";
+        error_message = "<b>Error</b> running compiled js on element with error: " + error;
+        error_element = $("<div class='error_message'></div>").html(error_message);
+        this.my_element().children('.code').append(error_element);
+        console.log(error_message);
+        throw error_message;
       }
+    };
+
+    CodeSegment.prototype.edit = function() {
+      var me;
+
+      me = this;
+      assert(typeof codemirror !== "undefined" && codemirror !== null, "CodeMirror is not loaded, for some reason.");
+      this.is_editing = true;
+      codemirror.setOption('mode', 'coffeescript');
+      codemirror.setOption('value', this.code);
+      $(".CodeMirror").width($('body').width() - 30);
+      $('.CodeMirror').find('.save-button').unbind('click').click(function() {
+        return me.save.call(me);
+      });
+      $('.CodeMirror').show();
+      $('.codeblanket').show();
+      return codemirror.scrollIntoView();
+    };
+
+    CodeSegment.prototype.save = function() {
+      this.code = codemirror.getValue();
+      this.reload_code();
+      return this.finish_editing();
+    };
+
+    CodeSegment.prototype.reload_code = function() {
+      this.dom_element.removeClass('error');
+      this.dom_element.children(".code").remove();
+      this.dom_element.append(this.render());
+      return lit.contentUpdated();
+    };
+
+    CodeSegment.prototype.finish_editing = function() {
+      $('.CodeMirror').hide();
+      $('.codeblanket').hide();
+      return this.is_editing = false;
     };
 
     CodeSegment.prototype.render = function(self) {
@@ -228,6 +344,7 @@
     function MarkdownSegment(content) {
       this.content = content != null ? content : "";
       MarkdownSegment.__super__.constructor.call(this);
+      this.allow_editing = true;
     }
 
     MarkdownSegment.identifier = /^[^\t]/;
@@ -242,6 +359,39 @@
       element = $("<div class='markdown'>" + this.content + "</div>");
       element.attr('data-markdown', this.content);
       return element;
+    };
+
+    MarkdownSegment.prototype.edit = function() {
+      var me;
+
+      me = this;
+      assert(typeof codemirror !== "undefined" && codemirror !== null, "CodeMirror is not loaded, for some reason.");
+      codemirror.setOption('mode', 'markdown');
+      codemirror.setOption('value', this.content);
+      $(".CodeMirror").width($('body').width() - 30);
+      $('.CodeMirror').find('.save-button').unbind('click').click(function() {
+        return me.save.call(me);
+      });
+      $('.CodeMirror').show();
+      $('.codeblanket').show();
+      return codemirror.scrollIntoView();
+    };
+
+    MarkdownSegment.prototype.save = function() {
+      this.content = codemirror.getValue();
+      this.reload_markdown();
+      return this.finish_editing();
+    };
+
+    MarkdownSegment.prototype.reload_markdown = function() {
+      this.dom_element.children(".markdown").remove();
+      this.dom_element.append(this.render());
+      return lit.contentUpdated();
+    };
+
+    MarkdownSegment.prototype.finish_editing = function() {
+      $('.CodeMirror').hide();
+      return $('.codeblanket').hide();
     };
 
     return MarkdownSegment;
@@ -306,7 +456,9 @@
         reader = new FileReader();
         reader.onload = function() {
           console.log(reader.result);
-          window.lit.load(reader.result);
+          lit.load(reader.result);
+          lit.render();
+          lit.run();
           return $('.welcome').hide();
         };
         _results.push(reader.readAsText(f));
@@ -317,8 +469,31 @@
     $('.markdown').each(function() {
       return $(this).html(marked($(this).html()));
     });
-    return $('.run-button').click(function() {
+    $('.run-button').click(function() {
       return lit.run();
+    });
+    window.codemirror = CodeMirror(document.body, {
+      value: "this is a test",
+      mode: "coffeescript",
+      theme: "ambiance",
+      lineNumbers: true
+    });
+    $(".CodeMirror").append("<div class='save-button'>SAVE</div>");
+    $(window).keydown(function(e) {
+      if (!((e.which === 115 || e.which === 83) && e.ctrlKey) && !(e.which === 19)) {
+        console.log(e.which);
+        return true;
+      }
+      lit.save();
+      e.preventDefault();
+      return false;
+    });
+    return $('.download-button').click(function() {
+      var code;
+
+      code = lit["export"]();
+      console.log(code);
+      return console.log($.base64.encode(code));
     });
   });
 
