@@ -29,6 +29,7 @@
     LiterateLoader.prototype.load = function(text) {
       var block_type, code, line, lines, markdown, seg_type, segment, this_seg_type, _i, _len;
       this.clear();
+      text = text.replace(/[\r]/gm, "");
       lines = text.split(/\n/);
       block_type = null;
       code = markdown = "";
@@ -44,7 +45,10 @@
       segment.lines.push(line);
       for (_i = 0, _len = lines.length; _i < _len; _i++) {
         line = lines[_i];
+        console.log("Looking at line " + line + "...");
+        console.log("Identified character zero: " + (line.charCodeAt(0)));
         this_seg_type = this.identify_segment(line);
+        console.log("Type: " + this_seg_type);
         if (this_seg_type === "blank" || this_seg_type === seg_type) {
           segment.lines.push(line);
         } else {
@@ -239,6 +243,7 @@
     CodeSegment.identifier = /^\t/;
 
     CodeSegment.prototype.load = function(code) {
+      code = $.trim(code);
       return this.code = code;
     };
 
@@ -299,6 +304,11 @@
       });
       $('.CodeMirror').show();
       $('.codeblanket').show();
+      $('.codeblanket').click(function() {
+        if (confirm("Cancel editing?")) {
+          return me.finish_editing.call(me);
+        }
+      });
       return codemirror.scrollIntoView();
     };
 
@@ -314,7 +324,7 @@
     };
 
     CodeSegment.prototype.save = function() {
-      this.code = codemirror.getValue();
+      this.code = codemirror.getValue().replace(/\r/mg, "\n");
       this.reload_code();
       return this.finish_editing();
     };
@@ -355,6 +365,7 @@
     MarkdownSegment.identifier = /(?:)/;
 
     MarkdownSegment.prototype.load = function(content) {
+      content = $.trim(content);
       return this.content = content;
     };
 
@@ -366,7 +377,7 @@
     };
 
     MarkdownSegment.prototype["export"] = function() {
-      return this.content;
+      return this.content + "\n";
     };
 
     MarkdownSegment.prototype.edit = function() {
@@ -379,6 +390,11 @@
       $(".CodeMirror").width($('body').width() - 30);
       $('.CodeMirror').find('.save-button').unbind('click').click(function() {
         return me.save.call(me);
+      });
+      $('.codeblanket').click(function() {
+        if (confirm("Cancel editing?")) {
+          return me.finish_editing.call(me);
+        }
       });
       $('.CodeMirror').show();
       $('.codeblanket').show();
@@ -401,7 +417,8 @@
     MarkdownSegment.prototype.finish_editing = function() {
       this.is_editing = false;
       $('.CodeMirror').hide();
-      return $('.codeblanket').hide();
+      $('.codeblanket').hide();
+      return $(".codeblanket").unbind('click');
     };
 
     return MarkdownSegment;
@@ -504,9 +521,10 @@
       code = lit["export"]();
       pom = document.createElement('a');
       pom.setAttribute('href', 'data:text/plain;charset=utf-8;base64,' + btoa(code));
-      pom.setAttribute('download', 'test.litcoffee');
+      pom.setAttribute('download', "" + window.filename + ".litcoffee");
       return pom.click();
     });
+    window.math = mathjs();
     window.filename = window.location.pathname.substring(1);
     return $.get("/raw/" + window.filename, function(r) {
       lit.load(r);

@@ -18,6 +18,8 @@ class window.LiterateLoader
 
 	load: (text) ->
 		@clear()
+		# Carriage returns are silly, delete them
+		text = text.replace /[\r]/gm,""
 		# Split everything into lines
 		lines = text.split /\n/
 		block_type = null
@@ -38,7 +40,10 @@ class window.LiterateLoader
 		segment.lines.push line
 
 		for line in lines
+			console.log "Looking at line #{line}..."
+			console.log "Identified character zero: #{line.charCodeAt 0}"
 			this_seg_type = @identify_segment line 
+			console.log "Type: #{this_seg_type}"
 			if this_seg_type == "blank" || this_seg_type == seg_type
 				segment.lines.push line
 			else 
@@ -195,6 +200,7 @@ class window.CodeSegment extends DocumentSegment
 	@identifier: /^\t/
 
 	load: (code) ->
+		code = $.trim code
 		@code = code
 
 	finish_loading: ->
@@ -249,6 +255,11 @@ class window.CodeSegment extends DocumentSegment
 
 		$('.CodeMirror').show()
 		$('.codeblanket').show()
+		# Clicking on codeblanket cancels the edit.
+		$('.codeblanket').click ->
+			if confirm "Cancel editing?"
+				me.finish_editing.call me
+
 		# This line is necessary to tell the codemirror controller
 		# that it has been made visible
 		codemirror.scrollIntoView()
@@ -261,7 +272,7 @@ class window.CodeSegment extends DocumentSegment
 		return output
 
 	save: ->
-		@code = codemirror.getValue()
+		@code = codemirror.getValue().replace(/\r/mg,"\n")
 		@reload_code()
 		@finish_editing()
 
@@ -289,6 +300,9 @@ class MarkdownSegment extends DocumentSegment
 	@identifier: //
 
 	load: (content) ->
+		# Cut off excess trailing newlines, replace with a
+		# single newline.
+		content = $.trim content
 		@content = content
 
 	render: (self) ->
@@ -297,7 +311,7 @@ class MarkdownSegment extends DocumentSegment
 		return element
 
 	export: ->
-		return @content
+		return @content+"\n"
 
 	edit: ->
 		me = @
@@ -317,9 +331,10 @@ class MarkdownSegment extends DocumentSegment
 		$('.CodeMirror').find('.save-button').unbind('click').click ->
 			me.save.call me
 
-		# This code segment scrolls the viewer around to find the segment
-		# currently being edited. But it's kind of weird when you're near
-		# the end of the document.
+		# Clicking on codeblanket cancels the edit.
+		$('.codeblanket').click ->
+			if confirm "Cancel editing?"
+				me.finish_editing.call me
 
 		$('.CodeMirror').show()
 		$('.codeblanket').show()
@@ -340,6 +355,7 @@ class MarkdownSegment extends DocumentSegment
 		@is_editing = no
 		$('.CodeMirror').hide()
 		$('.codeblanket').hide()
+		$(".codeblanket").unbind('click')
 
 class ConsoleSegment extends DocumentSegment
 	constructor: (@content="") ->
@@ -428,8 +444,11 @@ $ ->
 		code = lit.export()
 		pom = document.createElement('a')
 		pom.setAttribute('href', 'data:text/plain;charset=utf-8;base64,' + btoa(code));
-		pom.setAttribute('download', 'test.litcoffee')
+		pom.setAttribute('download', "#{window.filename}.litcoffee")
 		pom.click()
+
+	# Load up math.js
+	window.math = mathjs()
 
 	# Now, let's load the file from the current URL.
 	window.filename = window.location.pathname.substring(1)

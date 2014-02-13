@@ -6,20 +6,20 @@ html,body {
 	height: 100%;
 }
 
-body { padding-left: 30px; }
+body { padding-left: 30px; font-family: sans-serif; }
 
 body.home {
-	font-family: Alike;
 	color: white;
 	padding-left: 0;
 }
 
 .billboard {
+	font-family: Alike;
 	font-size: 60pt;
 	margin:auto;
 	width: 500px;
 	text-align: center;
-	padding-top: 20%;
+	padding-top: 200px;
 }
 
 .subtext {
@@ -88,6 +88,7 @@ div.logo {
 	font-family: Alike;
 	font-size: 25px;
 	margin-left: 30px;
+	cursor:pointer;
 	color: white;
 }
 
