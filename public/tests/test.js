@@ -15,7 +15,3 @@
   grocerylist = ['bread', 'muffins', 'detergent'];
 
 }).call(this);
-
-/*
-//@ sourceMappingURL=test.map
-*/

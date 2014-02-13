@@ -215,7 +215,7 @@ class window.CodeSegment extends DocumentSegment
 
 		js_code = ""
 		try  
-			js_code = CoffeeScript.compile @code
+			js_code = CoffeeScript.compile(@code, {bare: true, nowrap:true})
 		catch error
 			@my_element().addClass('error')
 			error_message = "<b>Error</b> compiling CoffeeScript on element with error: " + error
@@ -224,7 +224,8 @@ class window.CodeSegment extends DocumentSegment
 			console.log error_message
 			throw error_message
 		try
-			eval js_code
+			# In order to maintain a consistent scope, we need to do this.
+			window.eval.call window, js_code
 		catch error
 			@my_element().addClass('error')
 			error_message = "<b>Error</b> running compiled js on element with error: " + error
@@ -285,6 +286,7 @@ class window.CodeSegment extends DocumentSegment
 	finish_editing: ->
 		$('.CodeMirror').hide()
 		$('.codeblanket').hide()
+		$(".codeblanket").unbind()
 		@is_editing = no
 
 	render: (self) ->
@@ -332,7 +334,7 @@ class MarkdownSegment extends DocumentSegment
 			me.save.call me
 
 		# Clicking on codeblanket cancels the edit.
-		$('.codeblanket').click ->
+		$('.codeblanket').unbind('click').click ->
 			if confirm "Cancel editing?"
 				me.finish_editing.call me
 
@@ -355,7 +357,7 @@ class MarkdownSegment extends DocumentSegment
 		@is_editing = no
 		$('.CodeMirror').hide()
 		$('.codeblanket').hide()
-		$(".codeblanket").unbind('click')
+		$(".codeblanket").unbind()
 
 class ConsoleSegment extends DocumentSegment
 	constructor: (@content="") ->

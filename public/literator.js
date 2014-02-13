@@ -268,7 +268,10 @@
       this.my_element().find('.error_message').remove();
       js_code = "";
       try {
-        js_code = CoffeeScript.compile(this.code);
+        js_code = CoffeeScript.compile(this.code, {
+          bare: true,
+          nowrap: true
+        });
       } catch (_error) {
         error = _error;
         this.my_element().addClass('error');
@@ -279,7 +282,7 @@
         throw error_message;
       }
       try {
-        return eval(js_code);
+        return window["eval"].call(window, js_code);
       } catch (_error) {
         error = _error;
         this.my_element().addClass('error');
@@ -339,6 +342,7 @@
     CodeSegment.prototype.finish_editing = function() {
       $('.CodeMirror').hide();
       $('.codeblanket').hide();
+      $(".codeblanket").unbind();
       return this.is_editing = false;
     };
 
@@ -391,7 +395,7 @@
       $('.CodeMirror').find('.save-button').unbind('click').click(function() {
         return me.save.call(me);
       });
-      $('.codeblanket').click(function() {
+      $('.codeblanket').unbind('click').click(function() {
         if (confirm("Cancel editing?")) {
           return me.finish_editing.call(me);
         }
@@ -418,7 +422,7 @@
       this.is_editing = false;
       $('.CodeMirror').hide();
       $('.codeblanket').hide();
-      return $(".codeblanket").unbind('click');
+      return $(".codeblanket").unbind();
     };
 
     return MarkdownSegment;
@@ -534,7 +538,3 @@
   });
 
 }).call(this);
-
-/*
-//@ sourceMappingURL=literator.map
-*/
