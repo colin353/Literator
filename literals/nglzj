@@ -1,0 +1,13 @@
+# Ruby
+
+Ruby is the name of the game
+	print "test of system"
+	
+	colin = 5
+The next example will actually test the shared scope problem.
+
+And now let's print it out:
+	print "Colin is my best friend: #{colin}"
+
+##CONSOLE##
+Did it work?

@@ -1,0 +1,15 @@
+# This is a Python test.
+
+Section one: does it work?
+
+	print "Hello world"
+	print 5 + 5
+	myfavourite = 'green'
+
+##CONSOLE##
+
+Section two, does it remember itself? (Scope problems?)
+
+	print myfavourite
+
+##CONSOLE##

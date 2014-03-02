@@ -64,7 +64,7 @@ class window.LiterateLoader
 	# This can be used to produce console output
 	# in the literary mode.
 	print: (text) ->
-		@print_buffer.push text
+		@print_buffer.push $.trim(text)
 
 	# This is called by the console segment in order
 	# to display buffered output.
@@ -74,6 +74,9 @@ class window.LiterateLoader
 		return p
 
 	run: ->
+		# Clear out the print buffer because we're starting a new run
+		@empty_print_buffer()
+		# If nothing goes wrong, we're succesful.
 		success = yes
 		try
 			for s in @segments
@@ -215,16 +218,17 @@ class window.CodeSegment extends DocumentSegment
 
 		js_code = ""
 		try  
-			js_code = CoffeeScript.compile(@code, {bare: true, nowrap:true})
+			assembly = window.compiler.compile @code 
 		catch error
 			@my_element().addClass('error')
-			error_message = "<b>Error</b> compiling CoffeeScript on element with error: " + error
+			error_message = "<b>Error</b> compiling #{window.compiler.language} on element with error: " + error
 			error_element = $("<div class='error_message'></div>").html error_message
 			@my_element().children('.code').append error_element
 			console.log error_message
 			throw error_message
 		try
 			# In order to maintain a consistent scope, we need to do this.
+			window.compiler.run assembly
 			window.eval.call window, js_code
 		catch error
 			@my_element().addClass('error')
@@ -387,12 +391,78 @@ class ConsoleSegment extends DocumentSegment
 		element.attr 'data-code', content
 		return element
 
+# The compiler class is a generalized class that is language-indepdendent.
+# The intention is to extend this class to support any type of languages.
+class GenericCompiler
+	constructor: ->
+		@name 		= "GenericCompiler"
+		@language 	= "none"
+
+	# The compile function takes in some code of a particular language
+	# and returns something (probably javascript), to be later passed
+	# into the "run" command.
+	compile: (code) ->
+		assert false, "You can't compile using the generic compiler."
+		return "0"
+
+	# First, compile the code, then pass the compiled code into this 
+	# function to run it.
+	run: (assembly) ->
+		eval.call window, assembly
+
+class RubyCompiler extends GenericCompiler
+	constructor: ->
+		@name 		= "RubyCompiler (opal)"
+		@language 	= "text/x-ruby"
+
+		# Need to define the ruby console below, so that
+		# Opal knows how to write things out.
+		window.rubyconsole = {
+			log: (p) ->
+				lit.print p
+			,
+			warn: (p) ->
+				lit.print "Warning: p"
+		}
+
+	compile: (code) ->
+		Opal.compile code
+
+# This compiler compiles together some CoffeeScript.
+class CoffeeScriptCompiler extends GenericCompiler
+	constructor: ->
+		@name 		= "CoffeeScriptCompiler"
+		@language 	= "CoffeeScript"
+
+	compile: (code) ->
+		CoffeeScript.compile code, {bare: true, nowrap:true}
+
+class PythonCompiler extends GenericCompiler
+	constructor: ->
+		@name		= "PythonCompiler"
+		@language 	= "Python"
+
+		# We're using Skulpt, which needs some configuration
+		# (refer to http://www.skulpt.org/)
+		Sk.canvas 	= null
+		Sk.pre 		= null
+		Sk.configure {
+			output: (out) ->
+				lit.print out
+		}
+
+	compile: (code) ->
+		Sk.importMainWithBody "<stdin>", false, code
+
+
 # My customized assert method.
 window.assert = (condition, error) ->
 	throw error if !condition
 	yes
 
 $ ->
+	# The default compiler is the CoffeeScript compiler
+	window.compiler = new CoffeeScriptCompiler()
 	# This is the main literator object.
 	window.lit = new LiterateLoader()
 
@@ -430,7 +500,8 @@ $ ->
 		value: "this is a test",
 		mode: "coffeescript",
 		theme: "ambiance",
-		lineNumbers: yes		
+		lineNumbers: yes,
+		indentWithTabs: yes		
 	}
 
 	$(".CodeMirror").append("<div class='save-button'>SAVE</div>")

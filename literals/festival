@@ -8,6 +8,7 @@ And below, we've got the actual output of the `for` loop:
 
 - the best section
 - the super best section
+
 ##CONSOLE##
 But first we must certify that we are indeed animals	we = "human"	assert true, "We aren't certified to be animals!"	
 As one can see, this is *clearly* a much better `source` of
@@ -20,6 +21,5 @@ As one can see, this is *clearly* a much better `source` of
 > would be better than this!
 > -- Abraham Lincoln
 
-than the leading brand of detergent.	grocerylist = ['bread', 'muffins', 'detergent']			
-	
+than the leading brand of detergent.	grocerylist = ['bread', 'muffins', 'detergent']
 	
