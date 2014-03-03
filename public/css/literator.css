@@ -169,20 +169,46 @@ div.error_message {
 	display:none;
 }
 
-.CodeMirror .save-button {
+.CodeMirror .save-button, .CodeMirror .insert-button, .CodeMirror .type-selector {
 	background-color: #4183c4;
 	position: absolute;
 	color: white;
-	top: 0px;
-	right: 10px;
-	z-index: 20;
-	width: 50px;
 	display: block;
 	cursor: pointer;
 	text-align: center;
 	display:block;
 }
 
+.CodeMirror .save-button {
+	top: 0px;
+	right: 0px;
+	z-index: 20;
+	width: 50px;
+}
+
+.CodeMirror .insert-button {
+	bottom: 0px;
+	right: 0px;
+	z-index: 20;
+	width: 170px;
+}
+
+.CodeMirror input {
+	font-family: Monaco, Menlo, 'Andale Mono', 'lucida console', 'Courier New', monospace;
+	text-transform: uppercase;
+}
+
+.CodeMirror .type-selector {
+	top: 0;
+	right: 70px;
+	border: 0;
+	height: 19px;
+	border-radius: 0;
+	margin: 0;}
 .segment:hover .edit-button {
 	display:block;
+}
+
+.cm-s-ambiance.CodeMirror {
+	box-shadow: none;
 }

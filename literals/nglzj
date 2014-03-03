@@ -1,0 +1,6 @@
+# Optical Design Procedure
+
+This document is designed to help design the optical system for my AST2050 course.
+	:variable A between 5 and 200
+	:variable B between 40 and 200
+	:constraint A + B < 400

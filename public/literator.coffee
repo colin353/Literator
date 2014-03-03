@@ -3,6 +3,8 @@ class window.LiterateLoader
 		@debug 			= yes
 		@print_buffer 	= []
 		@segments 		= []
+		# List of valid segment types.
+		@segment_types = [CodeSegment, ConsoleSegment, MarkdownSegment]
 
 	identify_segment: (line) ->
 		if line == ""
@@ -10,8 +12,7 @@ class window.LiterateLoader
 		# Note that the order here matters: it is possible
 		# to have multiple types claim the same line, so the
 		# order must specify the preference.
-		segment_types = [CodeSegment, ConsoleSegment, MarkdownSegment]
-		for s in segment_types
+		for s in @segment_types
 			if s.identifier.test line 
 				return s
 		assert false, "No identifier matched the target line: '#{line}'"
@@ -99,6 +100,25 @@ class window.LiterateLoader
 			code.push s.export()
 		return code.join("")
 
+	# Using this function, a segment can request metamorphasis into another
+	# segment type.
+	request_metamorphasis: (segment, type_string) ->
+		new_type = DocumentSegment
+		# Let's turn the type string into an actual type.
+		for s in @segment_types
+			if s.type_title == type_string
+				new_type = s
+				break
+		assert new_type != DocumentSegment, "Illegal type string #{new_type} requested for metamorphasis."
+
+		# Now do the actual metamorphasis
+		for i in [1..@segments.length]
+			if @segments[i] == segment
+				data = @segments[i].export()
+				@segments[i] = new new_type()
+				@segments[i].load data
+				@segments[i].edit()
+				break			
 
 	# This function gets called when the keypress "ctrl+s" gets pushed.
 	save: ->
@@ -109,7 +129,6 @@ class window.LiterateLoader
 				s.save()
 		# And now export the document and save to the server.
 		$.post "/raw/#{window.filename}", {data: @export() }
-
 
 	clear: ->
 		$('.segments').html ''
@@ -142,6 +161,10 @@ class DocumentSegment
 		# By default, elements don't permit editing.
 		@allow_editing = no
 		@is_editing = no
+
+	@type_title: "Base DocumentSegment"
+
+	@can_convert: yes
 
 	finish_loading: ->
 		@load( @lines.join("\n") )
@@ -199,6 +222,8 @@ class window.CodeSegment extends DocumentSegment
 	 
 	@identifier: /^\t/
 
+	@type_title: "CoffeeScript"
+
 	load: (code) ->
 		code = $.trim code
 		@code = code
@@ -234,6 +259,9 @@ class window.CodeSegment extends DocumentSegment
 			console.log error_message
 			throw error_message
 
+	insertAfter: ->
+		alert "inserting..."
+
 	edit: ->
 		me = @
 		# Load up the CodeMirror.
@@ -251,8 +279,19 @@ class window.CodeSegment extends DocumentSegment
 
 		# Now let's register the save button. We'll override anything
 		# else registered on that button, also.
-		$('.CodeMirror').find('.save-button').unbind('click').click ->
+		$('.CodeMirror').find('.save-button').unbind('click').click =>
 			me.save.call me
+
+		$('.CodeMirror').find('.insert-button').unbind('click').click =>
+			me.insertAfter.call me
+
+		$('.CodeMirror').find('.type-selector').unbind('change').change ->
+			new_type =  $(@).val()
+			if confirm "Save and change type to #{new_type}?"
+				# Quit editing (we're about to die)
+				me.finish_editing.call me
+				# Turn into a butterfly
+				lit.request_metamorphasis me, new_type
 
 		$('.CodeMirror').show()
 		$('.codeblanket').show()
@@ -301,6 +340,8 @@ class MarkdownSegment extends DocumentSegment
 	
 	@identifier: //
 
+	@type_title: "Markdown"
+
 	load: (content) ->
 		# Cut off excess trailing newlines, replace with a
 		# single newline.
@@ -333,6 +374,17 @@ class MarkdownSegment extends DocumentSegment
 		$('.CodeMirror').find('.save-button').unbind('click').click ->
 			me.save.call me
 
+		$('.CodeMirror').find('.insert-button').unbind('click').click ->
+			me.insertAfter.call me
+
+		$('.CodeMirror').find('.type-selector').unbind('change').change ->
+			new_type =  $(@).val()
+			if confirm "Save and change type to #{new_type}?"
+				# Quit editing (we're about to die)
+				me.finish_editing.call me
+				# Turn into a butterfly
+				lit.request_metamorphasis me, new_type
+
 		# Clicking on codeblanket cancels the edit.
 		$('.codeblanket').unbind('click').click ->
 			if confirm "Cancel editing?"
@@ -364,6 +416,7 @@ class ConsoleSegment extends DocumentSegment
 		super()
 	
 	@identifier: /##CONSOLE##/
+	@can_convert: no
 
 	load: (content) ->
 		@content = content
@@ -434,6 +487,15 @@ $ ->
 	}
 
 	$(".CodeMirror").append("<div class='save-button'>SAVE</div>")
+	$(".CodeMirror").append("<div class='insert-button'>INSERT NEW SEGMENT</div>")
+
+	# Now we need to make the selector for types. We'll grab a list of all possibe types
+	convertible_segment_list = ""
+	for s in lit.segment_types
+		if s.can_convert
+			convertible_segment_list += "<option>#{s.type_title}</option>"
+
+	$(".CodeMirror").append("<select class='type-selector'>#{convertible_segment_list}</div>")
 
 	$(window).keydown (e) ->
 		if !( (e.which == 115 || e.which == 83 ) && e.ctrlKey) && !(e.which == 19)
