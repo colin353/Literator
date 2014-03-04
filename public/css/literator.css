@@ -36,7 +36,7 @@ body.home {
 	background-color: #C04948;
 }
 
-div.code { 
+div.code, div.constraints { 
 	background-color: #eee;
 }
 
@@ -123,7 +123,7 @@ div.codeblanket {
 	left: 0;
 }
 
-div.console, div.code {
+div.console, div.code, div.constraints {
 	white-space: pre;
 	font-family: monospace;
 	width: auto;

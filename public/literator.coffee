@@ -10,7 +10,7 @@ class window.LiterateLoader
 		# Note that the order here matters: it is possible
 		# to have multiple types claim the same line, so the
 		# order must specify the preference.
-		segment_types = [CodeSegment, ConsoleSegment, MarkdownSegment]
+		segment_types = [ConstraintSegment, CodeSegment, ConsoleSegment, MarkdownSegment]
 		for s in segment_types
 			if s.identifier.test line 
 				return s
@@ -74,6 +74,8 @@ class window.LiterateLoader
 		return p
 
 	run: ->
+		# Clear out the constraintsolver memory banks.
+		window.constraintsolver = new ConstraintSolver()
 		success = yes
 		try
 			for s in @segments
@@ -128,6 +130,16 @@ class window.LiterateLoader
 			# which will be simpler and less error-prone to decode.
 			if $(@).attr('data-code')?
 				$(@).html hljs.highlight( 'coffeescript', $(@).attr('data-code') ).value
+			# Otherwise, we'll use the internal contents.
+			else
+				$(@).html hljs.highlight( 'coffeescript', $(@).html() ).value
+				console.warn "Note: you have a code element that is relying on HTML -> HTML transfer. This is unreliable."
+
+		$('.constraints').each ->
+			# If we can support it, we'll check for the data attribute
+			# which will be simpler and less error-prone to decode.
+			if $(@).attr('data-constraints')?
+				$(@).html hljs.highlight( 'coffeescript', $(@).attr('data-constraints') ).value
 			# Otherwise, we'll use the internal contents.
 			else
 				$(@).html hljs.highlight( 'coffeescript', $(@).html() ).value
@@ -359,6 +371,49 @@ class MarkdownSegment extends DocumentSegment
 		$('.codeblanket').hide()
 		$(".codeblanket").unbind()
 
+class ConstraintSegment extends CodeSegment
+	constructor: ->
+		super()
+		@allow_editing = yes
+
+	@identifier: /^\t\:/
+
+	finish_loading: ->
+		# List comprehension!
+		@lines = ( line.replace(/^\t/,'') for line in @lines )
+		@load @lines.join("\n")
+
+	reload_code: ->
+		@dom_element.removeClass('error')
+		@dom_element.children(".constraints").remove()
+		@dom_element.append @render()
+		lit.contentUpdated()
+
+	run: ->
+		# The thing might still be higlighted red from eariler.
+		@my_element().removeClass('error')
+		@my_element().find('.error_message').remove()
+
+		js_code = ""
+		try  
+			js_code = constraintsolver.execute @code
+		catch error
+			@my_element().addClass('error')
+			error_message = "<b>Error</b> interpreting constraints logic on element with error: " + error
+			error_element = $("<div class='error_message'></div>").html error_message
+			@my_element().children('.code').append error_element
+			console.log error_message
+			throw error_message
+
+	load: (code) ->
+		content = $.trim code
+		@code = content
+
+	render: (self) ->
+		element = $ "<div class='constraints'>#{@code}</div>"
+		element.attr 'data-constraints', @code
+		return element
+
 class ConsoleSegment extends DocumentSegment
 	constructor: (@content="") ->
 		super()
@@ -395,6 +450,7 @@ window.assert = (condition, error) ->
 $ ->
 	# This is the main literator object.
 	window.lit = new LiterateLoader()
+	window.constraintsolver = new ConstraintSolver()
 
 	# This is necessary to stop the drag and drop from 
 	# overriding the whole page, for some reason.

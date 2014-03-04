@@ -1,0 +1,7 @@
+# Constraint tester
+
+The constraint test evaluates the performance of the new constraint-based design feature. 
+
+	:variable best between 5 and 13
+	:constraint best = 4
+	:solve

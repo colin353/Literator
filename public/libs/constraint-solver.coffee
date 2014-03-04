@@ -12,6 +12,8 @@ class window.ConstraintSolver
 
 		@debug_mode 	= yes
 
+		@compiler 		= new ConstraintCompiler(@)
+
 	registerVariable: (variable) ->
 		@variables[variable.callsign] = variable
 
@@ -28,6 +30,9 @@ class window.ConstraintSolver
 	debug: (message) ->
 		if @debug_mode
 			console.log message
+
+	execute: (code) ->
+		@compiler.execute code
 
 	solve: ->
 		# First, solve for the constraints, then solve
@@ -136,3 +141,39 @@ class window.Constraint
 			eval @right_hand_expression 
 		catch error
 			throw "Invalid constraint expression: #{error}"
+
+# This class compiles text commands (code) into modifications
+# to its parent ConstraintSolver object.
+class window.ConstraintCompiler
+	constructor: (@parent) ->
+		yes
+
+	execute: (code) ->
+		code 	= code.replace /[\r]/gm,""
+		lines 	= code.split /\n/
+		for line in lines 
+			# Split into individual words
+			words = line.split /\s+/
+			switch words[0]
+				when ":variable"
+					assert words[2] == "between", ":variable statement must include 'between' clause"
+					assert words[4] == "and", ":variable statement must include 'and' subclause in 'between' clause"
+					assert words.length == 6, "Invalid number of arguments for :variable, expected 4"
+					lower_bound = parseFloat words[3]
+					upper_bound = parseFloat words[5]
+					@parent.registerVariable new UniformRangeVariable(words[1], lower_bound, upper_bound)
+				when ":constraint"
+					remaining_string = words[1..].join(' ')
+					components = remaining_string.split /\=/
+					assert components.length == 2, "Invalid constraint statement."
+					left_side = components[0]
+					right_side = components[1]
+					@parent.registerConstraint new Constraint(left_side, right_side)
+				when ":solve"
+					assert words.length == 1, "Invalid 'solve' statement, unexpected extra clause"
+					@parent.solve()
+				else 
+					throw "Unrecognized command #{words[0]}."
+
+
+		
