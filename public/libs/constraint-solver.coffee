@@ -7,8 +7,8 @@ class window.ConstraintSolver
 		@optimizations 	= []
 		@variables		= {}
 
-		@iterations 	= 500
-		@gradient_step 	= 0.00005
+		@iterations 	= 2000
+		@gradient_step 	= 0.5
 
 		@debug_mode 	= yes
 
@@ -27,6 +27,26 @@ class window.ConstraintSolver
 			error += c.error()
 		return error
 
+	normalizeConstraintErrors: ->
+		constraint_errors = ( 0 for i in [1..@constraints.length] )
+		monte_carlo_iterations = 100
+		for i in [1..monte_carlo_iterations]
+			# Start by randomly surveying the variables within
+			# their expected ranges.
+			for n,v of @variables
+				v.assign Math.random()
+			# Now, evaluate the constraint errors.
+			for j in [0..(@constraints.length-1)]
+				constraint_errors[j] += @constraints[j].error()
+
+		for j in [0..(@constraints.length-1)]
+			# Handle the case where there are no errors. In that case,
+			# don't actually do any normalization.
+			if constraint_errors[j] == 0
+				constraint_errors = monte_carlo_iterations
+			# Tell the constraints to self-normalize with this factor.
+			@constraints[j].error_normalization = monte_carlo_iterations / constraint_errors[j]
+
 	debug: (message) ->
 		if @debug_mode
 			console.log message
@@ -38,6 +58,10 @@ class window.ConstraintSolver
 		# First, solve for the constraints, then solve
 		# for the optimizations. 
 		@debug "Beginning constraint solver under #{@constraints.length} constraints and #{Object.keys(@variables).length} variables."
+		# Start by performing constraint normalization, 
+		# which ensures that all constraints are equally weighted.
+		@normalizeConstraintErrors()
+		# Now iterate through everything.
 		for i in [1..@iterations]
 			# Initialize the gradient. This will contain the
 			# error gradients summed over all constraints.
@@ -57,6 +81,19 @@ class window.ConstraintSolver
 				v.assign(v.seed + variable_gradients[k] * @gradient_step)
 				
 		console.log @variables
+
+		# Check to see if all constraints passed.
+		met_constraints = yes
+		for c in @constraints
+			if !c.evaluate() 
+				met_constraints = no
+				break
+
+		if met_constraints
+			console.log "All constraints successfully met."
+		else 
+			console.warn "Not all constraints were met."
+
 		return @variables
 
 # A variable is something that will be optimized over.  
@@ -112,6 +149,7 @@ class window.UniformRangeVariable extends GenericVariable
 class window.Constraint
 	constructor: (@left_hand_expression, @right_hand_expression, @tolerance = 0.01) ->
 		@validate()
+		@error_normalization = 1
 		
 	# Returns true or false based upon whether the condition is met.
 	# The condition is considered met with respect to the tolerance.
@@ -123,12 +161,13 @@ class window.Constraint
 		else 
 			return no
 
+
 	# This might take some thinking on how to scale it...
 	# but it returns the error associated with the condition.
 	error: ->
 		LHS = eval @left_hand_expression
 		RHS = eval @right_hand_expression
-		return Math.pow Math.abs(LHS - RHS), 2
+		return @error_normalization * Math.pow(LHS - RHS, 2)
 
 	validate: ->
 		# Let's try to evaluate the actual constraint
@@ -139,11 +178,50 @@ class window.Constraint
 		catch error
 			throw "Invalid constraint expression: #{error}"
 
+class window.EqualityConstraint extends Constraint
+	@identify: (expression) ->
+		components = expression.split /\=/
+		if components.length == 2
+			return yes
+
+	constructor: (expression) ->
+		components = expression.split /\=/
+		super components[0], components[1]
+
+class window.InequalityConstraint extends Constraint
+
+	@identify: (expression) ->
+		components = expression.split /[><]/
+		if components.length == 2
+			return yes
+
+	constructor: (expression) ->
+		components = expression.split /[><]/
+		if expression.match(/([><])/)[0] == "<"
+			super components[0], components[1]
+		else 
+			super components[1], components[0]
+
+	evaluate: ->
+		LHS = eval @left_hand_expression
+		RHS = eval @right_hand_expression
+		if LHS < RHS
+			return yes
+		else return no
+
+	error: ->
+		LHS = eval @left_hand_expression
+		RHS = eval @right_hand_expression
+		if LHS < RHS 
+			return 0
+		else 
+			return Math.pow(LHS - RHS,2)
+
 # This class compiles text commands (code) into modifications
 # to its parent ConstraintSolver object.
 class window.ConstraintCompiler
 	constructor: (@parent) ->
-		yes
+		@constraint_types = [EqualityConstraint, InequalityConstraint]
 
 	execute: (code) ->
 		code 	= code.replace /[\r]/gm,""
@@ -161,11 +239,13 @@ class window.ConstraintCompiler
 					@parent.registerVariable new UniformRangeVariable(words[1], lower_bound, upper_bound)
 				when ":constraint"
 					remaining_string = words[1..].join(' ')
-					components = remaining_string.split /\=/
-					assert components.length == 2, "Invalid constraint statement."
-					left_side = components[0]
-					right_side = components[1]
-					@parent.registerConstraint new Constraint(left_side, right_side)
+					recognized_constraint = no
+					for c in @constraint_types
+						if c.identify remaining_string
+							@parent.registerConstraint new c(remaining_string)
+							recognized_constraint = yes
+							break
+					assert recognized_constraint, "Unrecognized constraint: '#{remaining_string}'"
 				when ":solve"
 					assert words.length == 1, "Invalid 'solve' statement, unexpected extra clause"
 					@parent.solve()

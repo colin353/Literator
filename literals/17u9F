@@ -3,16 +3,30 @@
 ## Problem #1
 
 The main parameters are:
-	aperture = 30
-	
-	A = 40 # The length between the CCD and lens
-	C = aperture # The aperture size
-	D = 250 # The distance between the lens and subject
-The performance metrics are:
+	A = 45 # The length between the CCD and lens
+	C = "unknown" # The aperture size
+	D = 300 # The distance between the lens and subject
+Our choice of lens from ThorLabs is the LA1251-A
+
+http://www.thorlabs.com/thorproduct.cfm?partnumber=LA1251-A
+
+Which has the following parameters:
+	focal_length = 40
+	lens_diameter = 25
+The focal plane is defined by the equation `1/f = 1/i + 1/o`. In our case, the focal length is `focal_length`, the object is located at distance `D` and the image should be at `A`.
+	D = 1.0 / ( 1/focal_length - 1/A )
+The operating f-ratio must be `6.25`, which will just set our aperture
+	C = D / 6.25
+### Performance Metrics
+
+Below, we can see the performance metrics for the design.
 	lit.print "Length: #{A+D} mm"
-	lit.print "F-ratio: #{C/D} (ideal: 6.25)"
+	lit.print "Aperture size: #{C} mm"
+	lit.print "Sensor distance (A): #{A} mm"
+	lit.print "Object distance (D): #{D} mm"
+	lit.print "F-ratio: #{D/C} (ideal: 6.25)"
 	lit.print "Magnification: #{A / D} (ideal: 0.25)"
-##CONSOLE##	assert A >= 40, "A must be > 40mm"
-	assert D/C == 6.25, "Operating f-ratio is incorrect."
-	assert A + B < 400, "Total length must be < 400mm"
+##CONSOLE##	assert A + D < 400, "Total length must be < 400mm"
+	assert D > 0 && A > 0 && C > 0, "All parameters must be positive."
 	assert A/D < 0.25, "Magnification must not be too high"
+	assert lens_diameter > C, "The aperture stop must be smaller than the lens size."

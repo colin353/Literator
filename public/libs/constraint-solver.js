@@ -8,8 +8,8 @@
       this.constraints = [];
       this.optimizations = [];
       this.variables = {};
-      this.iterations = 500;
-      this.gradient_step = 0.00005;
+      this.iterations = 2000;
+      this.gradient_step = 0.5;
       this.debug_mode = true;
       this.compiler = new ConstraintCompiler(this);
     }
@@ -33,6 +33,37 @@
       return error;
     };
 
+    ConstraintSolver.prototype.normalizeConstraintErrors = function() {
+      var constraint_errors, i, j, monte_carlo_iterations, n, v, _i, _j, _k, _ref, _ref1, _ref2, _results;
+      constraint_errors = (function() {
+        var _i, _ref, _results;
+        _results = [];
+        for (i = _i = 1, _ref = this.constraints.length; 1 <= _ref ? _i <= _ref : _i >= _ref; i = 1 <= _ref ? ++_i : --_i) {
+          _results.push(0);
+        }
+        return _results;
+      }).call(this);
+      monte_carlo_iterations = 100;
+      for (i = _i = 1; 1 <= monte_carlo_iterations ? _i <= monte_carlo_iterations : _i >= monte_carlo_iterations; i = 1 <= monte_carlo_iterations ? ++_i : --_i) {
+        _ref = this.variables;
+        for (n in _ref) {
+          v = _ref[n];
+          v.assign(Math.random());
+        }
+        for (j = _j = 0, _ref1 = this.constraints.length - 1; 0 <= _ref1 ? _j <= _ref1 : _j >= _ref1; j = 0 <= _ref1 ? ++_j : --_j) {
+          constraint_errors[j] += this.constraints[j].error();
+        }
+      }
+      _results = [];
+      for (j = _k = 0, _ref2 = this.constraints.length - 1; 0 <= _ref2 ? _k <= _ref2 : _k >= _ref2; j = 0 <= _ref2 ? ++_k : --_k) {
+        if (constraint_errors[j] === 0) {
+          constraint_errors = monte_carlo_iterations;
+        }
+        _results.push(this.constraints[j].error_normalization = monte_carlo_iterations / constraint_errors[j]);
+      }
+      return _results;
+    };
+
     ConstraintSolver.prototype.debug = function(message) {
       if (this.debug_mode) {
         return console.log(message);
@@ -44,8 +75,9 @@
     };
 
     ConstraintSolver.prototype.solve = function() {
-      var c, i, k, this_error, v, variable_gradients, _i, _j, _len, _ref, _ref1, _ref2, _ref3;
+      var c, i, k, met_constraints, this_error, v, variable_gradients, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2, _ref3, _ref4;
       this.debug("Beginning constraint solver under " + this.constraints.length + " constraints and " + (Object.keys(this.variables).length) + " variables.");
+      this.normalizeConstraintErrors();
       for (i = _i = 1, _ref = this.iterations; 1 <= _ref ? _i <= _ref : _i >= _ref; i = 1 <= _ref ? ++_i : --_i) {
         variable_gradients = {};
         _ref1 = this.variables;
@@ -69,6 +101,20 @@
         }
       }
       console.log(this.variables);
+      met_constraints = true;
+      _ref4 = this.constraints;
+      for (_k = 0, _len1 = _ref4.length; _k < _len1; _k++) {
+        c = _ref4[_k];
+        if (!c.evaluate()) {
+          met_constraints = false;
+          break;
+        }
+      }
+      if (met_constraints) {
+        console.log("All constraints successfully met.");
+      } else {
+        console.warn("Not all constraints were met.");
+      }
       return this.variables;
     };
 
@@ -154,6 +200,7 @@
       this.right_hand_expression = right_hand_expression;
       this.tolerance = tolerance != null ? tolerance : 0.01;
       this.validate();
+      this.error_normalization = 1;
     }
 
     Constraint.prototype.evaluate = function() {
@@ -171,7 +218,7 @@
       var LHS, RHS;
       LHS = eval(this.left_hand_expression);
       RHS = eval(this.right_hand_expression);
-      return Math.pow(Math.abs(LHS - RHS), 2);
+      return this.error_normalization * Math.pow(LHS - RHS, 2);
     };
 
     Constraint.prototype.validate = function() {
@@ -189,14 +236,82 @@
 
   })();
 
+  window.EqualityConstraint = (function(_super) {
+    __extends(EqualityConstraint, _super);
+
+    EqualityConstraint.identify = function(expression) {
+      var components;
+      components = expression.split(/\=/);
+      if (components.length === 2) {
+        return true;
+      }
+    };
+
+    function EqualityConstraint(expression) {
+      var components;
+      components = expression.split(/\=/);
+      EqualityConstraint.__super__.constructor.call(this, components[0], components[1]);
+    }
+
+    return EqualityConstraint;
+
+  })(Constraint);
+
+  window.InequalityConstraint = (function(_super) {
+    __extends(InequalityConstraint, _super);
+
+    InequalityConstraint.identify = function(expression) {
+      var components;
+      components = expression.split(/[><]/);
+      if (components.length === 2) {
+        return true;
+      }
+    };
+
+    function InequalityConstraint(expression) {
+      var components;
+      components = expression.split(/[><]/);
+      if (expression.match(/([><])/)[0] === "<") {
+        InequalityConstraint.__super__.constructor.call(this, components[0], components[1]);
+      } else {
+        InequalityConstraint.__super__.constructor.call(this, components[1], components[0]);
+      }
+    }
+
+    InequalityConstraint.prototype.evaluate = function() {
+      var LHS, RHS;
+      LHS = eval(this.left_hand_expression);
+      RHS = eval(this.right_hand_expression);
+      if (LHS < RHS) {
+        return true;
+      } else {
+        return false;
+      }
+    };
+
+    InequalityConstraint.prototype.error = function() {
+      var LHS, RHS;
+      LHS = eval(this.left_hand_expression);
+      RHS = eval(this.right_hand_expression);
+      if (LHS < RHS) {
+        return 0;
+      } else {
+        return Math.pow(LHS - RHS, 2);
+      }
+    };
+
+    return InequalityConstraint;
+
+  })(Constraint);
+
   window.ConstraintCompiler = (function() {
     function ConstraintCompiler(parent) {
       this.parent = parent;
-      true;
+      this.constraint_types = [EqualityConstraint, InequalityConstraint];
     }
 
     ConstraintCompiler.prototype.execute = function(code) {
-      var components, left_side, line, lines, lower_bound, remaining_string, right_side, upper_bound, words, _i, _len, _results;
+      var c, line, lines, lower_bound, recognized_constraint, remaining_string, upper_bound, words, _i, _j, _len, _len1, _ref, _results;
       code = code.replace(/[\r]/gm, "");
       lines = code.split(/\n/);
       _results = [];
@@ -214,11 +329,17 @@
             break;
           case ":constraint":
             remaining_string = words.slice(1).join(' ');
-            components = remaining_string.split(/\=/);
-            assert(components.length === 2, "Invalid constraint statement.");
-            left_side = components[0];
-            right_side = components[1];
-            _results.push(this.parent.registerConstraint(new Constraint(left_side, right_side)));
+            recognized_constraint = false;
+            _ref = this.constraint_types;
+            for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+              c = _ref[_j];
+              if (c.identify(remaining_string)) {
+                this.parent.registerConstraint(new c(remaining_string));
+                recognized_constraint = true;
+                break;
+              }
+            }
+            _results.push(assert(recognized_constraint, "Unrecognized constraint: '" + remaining_string + "'"));
             break;
           case ":solve":
             assert(words.length === 1, "Invalid 'solve' statement, unexpected extra clause");

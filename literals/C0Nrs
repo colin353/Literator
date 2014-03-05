@@ -1,0 +1,27 @@
+# Constraints design test
+
+The main parameters in this design study are `A`: the distance between the image sensor and the lens, and `B`: the distance between the lens and the object.
+	:variable A between 40 and 100
+	:variable D between 160 and 360
+## Design Parameters
+
+The lens we have chosen is from ThorLabs.
+	focal_length = 60.0
+	lens_diameter = 50.8
+## Constraint Specification
+
+The primary constraints are:
+
+- The total length `A + D` must not exceed 400 mm
+- The sensor to lens distance (`A`) must not be less than 40 mm
+- The aperture stop must not be larger than the lens diameter.
+- The system must be in focus, according to the lens equation.
+	:constraint A + D < 400
+	:constraint A / D < 0.25
+	:constraint D / 6.25 < lens_diameter
+	:solve
+The results are in:
+	lit.print "Sensor distance (A): #{A} mm"
+	lit.print "Object distance (D): #{D} mm"
+	lit.print "Aperture size: #{D / 6.25} mm"
+##CONSOLE##
