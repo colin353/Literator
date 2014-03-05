@@ -3,6 +3,7 @@ class window.LiterateLoader
 		@debug 			= yes
 		@print_buffer 	= []
 		@segments 		= []
+		@segment_types = [ConstraintSegment, CodeSegment, ConsoleSegment, MarkdownSegment]
 
 	identify_segment: (line) ->
 		if line == ""
@@ -10,8 +11,7 @@ class window.LiterateLoader
 		# Note that the order here matters: it is possible
 		# to have multiple types claim the same line, so the
 		# order must specify the preference.
-		segment_types = [ConstraintSegment, CodeSegment, ConsoleSegment, MarkdownSegment]
-		for s in segment_types
+		for s in @segment_types
 			if s.identifier.test line 
 				return s
 		assert false, "No identifier matched the target line: '#{line}'"
@@ -57,6 +57,7 @@ class window.LiterateLoader
 		@segments.push segment
 
 	render: ->
+		$('.segments').html('')
 		for s in @segments
 			$('.segments').append s.encapsulate()
 		@contentUpdated()
@@ -72,6 +73,61 @@ class window.LiterateLoader
 		p = @print_buffer
 		@print_buffer = []
 		return p
+
+	insertNewSegment: (index, segment_type) ->
+		seg = new segment_type()
+		#seg.load("This is some new content")
+		console.log @segments.join()
+		@segments.splice(index, 0, seg)
+		console.log @segments.join()
+		@render()
+
+	findSegmentIndexBySegment: (segment) ->
+		index = null
+		for i in [0..@segments.length]
+			if @segments[i] == segment
+				index = i
+		assert index?, "Tried to find nonexistant segment."
+		return index
+
+	destroySegment: (segment) ->
+		@segments.splice @findSegmentIndexBySegment(segment),1
+		@render()
+
+	# Insert a new segment into the document after
+	# the segment that is passed into the function.
+	insertAfter: (segment) ->
+		# Let's find the index of the segment that we are
+		# trying to insert after.
+		index = null
+		me = @
+		for i in [0..@segments.length]
+			if @segments[i] == segment
+				index = i + 1
+		assert index?, "Invalid insertAfter called on LiterateLoader"
+
+		buttons = []
+		for s in @segment_types
+			buttons.push { 
+				text: s.readable_name, 
+				onclick: ((segment, i, m) ->
+						return -> m.insertNewSegment i,segment
+					)(s,index,me)
+			}
+
+		window.overlaymenu = new OverlayMenu()
+		overlaymenu.options = {
+			"Choose which items to insert:": buttons,
+			"Or, go back:": [
+				{ 
+					text: 'Cancel', red:yes, 
+					onclick: => 
+						overlaymenu.close()
+				}
+			]
+		}
+
+		overlaymenu.display()
 
 	run: ->
 		# Clear out the constraintsolver memory banks.
@@ -155,11 +211,32 @@ class DocumentSegment
 		@allow_editing = no
 		@is_editing = no
 
+	@readable_name = "DocumentSegment"
+
 	finish_loading: ->
 		@load( @lines.join("\n") )
 
 	export: ->
 		return ""
+
+	insertAfter: ->
+		lit.insertAfter @
+
+	destroy: ->
+		o = new OverlayMenu { 
+			'Are you sure you want to delete this segment?':  [
+				{
+					text: "Delete it!",
+					onclick: =>
+						lit.destroySegment @
+				},
+				{
+					text: "Nevermind.",
+					red: yes
+				}
+			]
+		}
+		o.show()
 
 	load: ->
 		assert false, 'Invalid call of base DocumentSegment load.'
@@ -184,13 +261,13 @@ class DocumentSegment
 	# This function returns a jquery object that represents the 
 	# segment. It can be inserted into the document.
 	encapsulate: ->
+		me = @
 		s = "<div class='segment' id='#{@my_element_string()}'></div>"
 		@dom_element = $(s)
 		@dom_element.append @.render()
 		# If editing is permitted, we'll add the editing button
 		# which will pop up when the user hovers the segment.
 		if @allow_editing
-			me = @
 			edit_button = $ '<div class="edit-button">EDIT</div>'
 			edit_button.click -> 
 				me.edit.call me
@@ -201,6 +278,28 @@ class DocumentSegment
 				me.edit.call me
 				e.preventDefault()
 				return false
+
+		# Allow selecting (highlighting) the current element
+		# via single-click
+		@dom_element.click ->
+			if $(@).is('.selected')
+				$(@).removeClass 'selected'
+			else 
+				$('.segment').removeClass 'selected'
+				$(@).addClass 'selected'
+
+		# Insert an "insert" button.
+		insert_button = $ '<div class="insert-button">INSERT AFTER...</div>'
+		insert_button.click -> 
+			 me.insertAfter.call me
+		@dom_element.append insert_button
+
+		# Insert a "delete" button, which destroys the object
+		delete_button = $ '<div class="delete-button">DELETE<div>'
+		delete_button.click -> 
+			me.destroy.call me
+		@dom_element.append delete_button
+
 		return @dom_element
 
 class window.CodeSegment extends DocumentSegment
@@ -210,6 +309,8 @@ class window.CodeSegment extends DocumentSegment
 		yes
 	 
 	@identifier: /^\t/
+
+	@readable_name = "Code"
 
 	load: (code) ->
 		code = $.trim code
@@ -312,6 +413,7 @@ class MarkdownSegment extends DocumentSegment
 		@allow_editing = yes
 	
 	@identifier: //
+	@readable_name = "Markdown"
 
 	load: (content) ->
 		# Cut off excess trailing newlines, replace with a
@@ -377,6 +479,7 @@ class ConstraintSegment extends CodeSegment
 		@allow_editing = yes
 
 	@identifier: /^\t\:/
+	@readable_name = "Constraint"
 
 	finish_loading: ->
 		# List comprehension!
@@ -415,10 +518,11 @@ class ConstraintSegment extends CodeSegment
 		return element
 
 class ConsoleSegment extends DocumentSegment
-	constructor: (@content="") ->
+	constructor: (@content="") ->	
 		super()
 	
 	@identifier: /##CONSOLE##/
+	@readable_name = "Console"
 
 	load: (content) ->
 		@content = content
@@ -426,14 +530,12 @@ class ConsoleSegment extends DocumentSegment
 	# When run, we clear everything out, and fill up the console
 	# with whatever is in there right now.
 	run: ->
-		@my_element().html('').append @render()
+		@my_element().children('.console').replaceWith @render()
 		yes
 
 	export: ->
 		'''
-		
 		##CONSOLE##
-
 		'''
 
 	render: (self) ->
@@ -441,6 +543,58 @@ class ConsoleSegment extends DocumentSegment
 		element = $ "<div class='console'>#{content}</div>"
 		element.attr 'data-code', content
 		return element
+
+# My special overlay menu: Looks like the following
+###
+<h2>Choose segment to insert.</h2>
+<div class="menu-button">Markdown</div>
+<div class="menu-button">Console</div>
+<div class="menu-button">Constraints</div>
+<div class="menu-button">Code</div>
+<br style="clear:both" />
+<h2>Or, go back.</h2>
+<div class="menu-button red">Cancel</div>
+###
+
+class window.OverlayMenu
+	# You should pass in an options hash like this: {'Option group 1 text': [ { text:'Button1', onclick:callback_function, red:yes } , ... ]}
+	constructor: (@options)->
+		@dom_element = $ '.insert-menu'
+
+	build: ->
+		@dom_element.html ''
+		for section,menu of @options
+			# Insert the title
+			@dom_element.append "<h2>#{section}</h2>"
+			for button in menu
+				button_element = $ "<div class='menu-button'>#{button.text}</div>"
+				if button.red 
+					button_element.addClass 'red'
+				button_element.click button.onclick
+				button_element.click =>
+					@close()
+				@dom_element.append button_element
+			@dom_element.append "<br style='clear:both' />"
+	
+	# Show is an alias for display.
+	show: ->
+		@display()	
+
+	display: ->
+		# Build everything from the options.
+		@build()
+		# Display the overlays.
+		$('.codeblanket').show()
+		$('.insert-menu').show()
+
+		$('.codeblanket').unbind('click').click =>
+			@close()
+
+	close: ->
+		$('.codeblanket').hide()
+		$('.insert-menu').hide()
+		# Destroy the contents of the dom_element so it doesn't show up again.
+		@dom_element.html ''
 
 # My customized assert method.
 window.assert = (condition, error) ->

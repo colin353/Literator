@@ -1,7 +1,19 @@
-# Constraint tester
+# AST2050 Optical Design
 
-The constraint test evaluates the performance of the new constraint-based design feature. 
+## Problem #1
 
-	:variable best between 5 and 13
-	:constraint best = 4
-	:solve
+The main parameters are:
+
+	focal_length = 30
+	aperture = 30
+
+The performance metrics are:
+
+	lit.print "Length: #{A+B} mm"
+	lit.print "Magnification: #{A / D} (ideal: 0.25)"
+
+The requirements are:
+
+	assert A > 40, "A must be > 40mm"
+	assert A + B < 400, "Total length must be < 400mm"
+	assert A/D < 0.25, "Magnification must not be too high"

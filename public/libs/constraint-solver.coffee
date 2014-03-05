@@ -37,10 +37,8 @@ class window.ConstraintSolver
 	solve: ->
 		# First, solve for the constraints, then solve
 		# for the optimizations. 
-		@debug "Beginning constraint solver under #{@constraints.length} constraints and #{@variables.length} variables."
+		@debug "Beginning constraint solver under #{@constraints.length} constraints and #{Object.keys(@variables).length} variables."
 		for i in [1..@iterations]
-			error = @error()
-			@debug "Beginning iteration #{i}, current error value = #{error}"
 			# Initialize the gradient. This will contain the
 			# error gradients summed over all constraints.
 			variable_gradients = {}
@@ -52,14 +50,13 @@ class window.ConstraintSolver
 				for k,v of variable_gradients
 					this_error = @variables[k].determineErrorGradientWithRespectToConstraint.call @variables[k], c
 					variable_gradients[k] += this_error
-					console.log "The error on #{@variables[k].callsign} found was: #{this_error}"
+					#console.log "The error on #{@variables[k].callsign} found was: #{this_error}"
 			# Now that we have developed all of the gradients
 			# we'll simply apply them and take another step.
 			for k,v of @variables
-				debug_string = "Increment #{v.callsign} from #{v.value} ->"
 				v.assign(v.seed + variable_gradients[k] * @gradient_step)
-				console.log debug_string, "#{v.value}"
-
+				
+		console.log @variables
 		return @variables
 
 # A variable is something that will be optimized over.  

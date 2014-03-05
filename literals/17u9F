@@ -1,0 +1,18 @@
+# AST2050 Optical Design
+
+## Problem #1
+
+The main parameters are:
+	aperture = 30
+	
+	A = 40 # The length between the CCD and lens
+	C = aperture # The aperture size
+	D = 250 # The distance between the lens and subject
+The performance metrics are:
+	lit.print "Length: #{A+D} mm"
+	lit.print "F-ratio: #{C/D} (ideal: 6.25)"
+	lit.print "Magnification: #{A / D} (ideal: 0.25)"
+##CONSOLE##	assert A >= 40, "A must be > 40mm"
+	assert D/C == 6.25, "Operating f-ratio is incorrect."
+	assert A + B < 400, "Total length must be < 400mm"
+	assert A/D < 0.25, "Magnification must not be too high"

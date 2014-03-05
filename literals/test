@@ -1,0 +1,8 @@
+# Constraint tester
+
+The constraint test evaluates the performance of the new constraint-based design feature.
+	:variable a between 0 and 10
+	:variable b between 0 and 10
+	:constraint a - b = 2
+	:constraint a + b = 10
+	:solve

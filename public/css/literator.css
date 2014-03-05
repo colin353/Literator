@@ -38,6 +38,7 @@ body.home {
 
 div.code, div.constraints { 
 	background-color: #eee;
+	min-height: 10px;
 }
 
 div.top-menu {
@@ -127,9 +128,6 @@ div.console, div.code, div.constraints {
 	white-space: pre;
 	font-family: monospace;
 	width: auto;
-	margin-right: 20px;
-	margin-top: 10px;
-	margin-bottom: 10px;
 	padding: 20px;
 }
 
@@ -154,6 +152,13 @@ div.error_message {
 
 .segment {
 	position: relative;
+	margin-right: 20px;
+	margin-top: 20px;
+	margin-bottom: 20px;
+}
+
+.segment.selected .markdown {
+	padding-left: 20px;
 }
 
 .segment .edit-button {
@@ -161,7 +166,7 @@ div.error_message {
 	position: absolute;
 	color: white;
 	top: 0;
-	right: 20px;
+	right: 0px;
 	width: 50px;
 	display: block;
 	cursor: pointer;
@@ -184,5 +189,71 @@ div.error_message {
 }
 
 .segment:hover .edit-button {
+	display:block;
+}
+
+.segment.selected {
+	border: 2px solid #4183c4;
+	margin-bottom: 40px;
+}
+
+.segment .insert-button {
+	background-color: #4183c4;
+	position: absolute;
+	color: white;
+	bottom: -22px;
+	left: -2px;
+	width: 130px;
+	display: block;
+	cursor: pointer;
+	text-align: center;
+	display:none;
+}
+
+.segment .delete-button {
+	background-color: #C04948;
+	position: absolute;
+	color: white;
+	bottom: -2px;
+	right: -2px;
+	width: 70px;
+	display: block;
+	cursor: pointer;
+	text-align: center;
+	display: none;
+}
+
+
+.menu-button {
+	width: 150px;
+	text-align: center;
+	padding: 10px;
+	margin: 20px;
+	color: white;
+	background-color: #4183c4;
+	float: left;
+	cursor: pointer;
+}
+
+.menu-button.red {
+	background-color: #C04948;
+}
+
+.insert-menu {
+	display: block;
+	position: absolute;
+	z-index: 100;
+	width: 80%;
+	left: 10%;
+	top: 10%;
+	height: 80%;
+	display:none;
+}
+
+.insert-menu h2 {
+	color: white;
+}
+
+.segment.selected .insert-button, .segment.selected .edit-button, .segment.selected .delete-button {
 	display:block;
 }
