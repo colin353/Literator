@@ -1,14 +1,24 @@
 # The ConstraintSolver will look at all of the constraints
 # and optimizations and try to find the best value of all 
 # registered variables.
+
+# This is an optimized Math.sign function that we need to use
+# on several occasions. It was taken from StackOverflow.
+`
+Math.sign = function(x) {
+    return typeof x === 'number' ? x ? x < 0 ? -1 : 1 : x === x ? 0 : NaN : NaN;
+}
+`
+
 class window.ConstraintSolver
 	constructor: ->
 		@constraints 	= []
 		@optimizations 	= []
 		@variables		= {}
 
-		@iterations 	= 2000
-		@gradient_step 	= 0.5
+		@iterations 	= 500
+		@gradient_step 	= .01
+		@maximum_step	= 0.2
 
 		@debug_mode 	= yes
 
@@ -29,7 +39,12 @@ class window.ConstraintSolver
 
 	normalizeConstraintErrors: ->
 		constraint_errors = ( 0 for i in [1..@constraints.length] )
-		monte_carlo_iterations = 100
+
+		# Reset any pre-existing constraint normalization
+		for c in @constraints 
+			c.error_normalization = 1
+
+		monte_carlo_iterations = 1000
 		for i in [1..monte_carlo_iterations]
 			# Start by randomly surveying the variables within
 			# their expected ranges.
@@ -37,13 +52,17 @@ class window.ConstraintSolver
 				v.assign Math.random()
 			# Now, evaluate the constraint errors.
 			for j in [0..(@constraints.length-1)]
-				constraint_errors[j] += @constraints[j].error()
+				error = Math.abs @constraints[j].error()
+				if error > 1e10 || isNaN error
+					error = 1e10
+				constraint_errors[j] += error
 
 		for j in [0..(@constraints.length-1)]
 			# Handle the case where there are no errors. In that case,
 			# don't actually do any normalization.
-			if constraint_errors[j] == 0
-				constraint_errors = monte_carlo_iterations
+			if constraint_errors[j] == 0 || isNaN(constraint_errors[j])
+				constraint_errors[j] = monte_carlo_iterations
+			console.log "Constraint error for #{j} is #{constraint_errors[j]}"
 			# Tell the constraints to self-normalize with this factor.
 			@constraints[j].error_normalization = monte_carlo_iterations / constraint_errors[j]
 
@@ -78,8 +97,14 @@ class window.ConstraintSolver
 			# Now that we have developed all of the gradients
 			# we'll simply apply them and take another step.
 			for k,v of @variables
-				v.assign(v.seed + variable_gradients[k] * @gradient_step)
-				
+				# Ostensibly the step will be in the direction of the gradient:
+				step = variable_gradients[k] * @gradient_step
+				# We need to limit the maximum value of the variable gradients to prevent huge jumps. 
+				if Math.abs(step) > @maximum_step
+					console.log "Limiting max step!"
+					step = @maximum_step * Math.sign(step)
+				v.assign(v.seed + step)
+
 		console.log @variables
 
 		# Check to see if all constraints passed.
@@ -88,6 +113,8 @@ class window.ConstraintSolver
 			if !c.evaluate() 
 				met_constraints = no
 				break
+
+		console.log "Completed optimization with error = #{@error()}"
 
 		if met_constraints
 			console.log "All constraints successfully met."
@@ -104,7 +131,7 @@ class window.GenericVariable
 		@value 		?= @assign Math.random()
 		@callsign 	?= "_dump"
 		@parent 	?= null
-		@error_gradient_step ?= 0.001
+		@error_gradient_step ?= 0.5
 
 	# The seed function takes a floating number between zero and one
 	# and generates a value for the variable to take on.
@@ -160,7 +187,6 @@ class window.Constraint
 			return yes
 		else 
 			return no
-
 
 	# This might take some thinking on how to scale it...
 	# but it returns the error associated with the condition.

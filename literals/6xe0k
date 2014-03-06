@@ -6,9 +6,9 @@ The main parameters are:
 	A = 45.5 # The length between the CCD and lens
 	C = "unknown" # The aperture size
 	D = "unknown" # The distance between the lens and subject
-Our choice of lens from ThorLabs is the LA1251-A
+Our choice of lens from ThorLabs is the LA1422
 
-http://www.thorlabs.com/thorproduct.cfm?partnumber=LA1251-A
+http://www.thorlabs.com/thorproduct.cfm?partnumber=LA1422
 
 Which has the following parameters:
 	focal_length = 40
@@ -30,3 +30,4 @@ Below, we can see the performance metrics for the design.
 	assert D > 0 && A > 0 && C > 0, "All parameters must be positive."
 	assert A/D < 0.25, "Magnification must not be too high"
 	assert lens_diameter > C, "The aperture stop must be smaller than the lens size."
+	lit.print "All design assertions passed."

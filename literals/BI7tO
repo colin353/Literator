@@ -1,0 +1,12 @@
+## Constraint Design Tester
+
+This file is designed to test the performance of the constraints software.
+	:variable A between 0 and 10
+	:variable B between 0 and 10
+	:constraint A + B = 10
+	:constraint A - B = 3
+	:solve
+Now let's look at the results:
+	lit.print "A = #{A}"
+	lit.print "B = #{B}"
+##CONSOLE##

@@ -259,3 +259,17 @@ div.error_message {
 .segment.selected .insert-button, .segment.selected .edit-button, .segment.selected .delete-button {
 	display:block;
 }
+
+@media print {
+	.top-bar {
+		display: none !important;
+	}
+	.placeholder {
+		display: none !important;	
+	}
+
+	.literate {
+		overflow: visible !important;
+		height: auto !important;
+	}
+}
